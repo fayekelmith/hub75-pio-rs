@@ -25,6 +25,7 @@ use hub75_pio::lut::GammaLut;
 
 use rp_pico as bsp;
 
+/// Display buffer for 64x32 RGB LED matrix with 12-bit color depth (shades)
 static mut DISPLAY_BUFFER: hub75_pio::DisplayMemory<64, 32, 12> = hub75_pio::DisplayMemory::new();
 
 const FRAMES: [&[u8]; 12] = [
@@ -100,10 +101,12 @@ fn main() -> ! {
                 r2: pins.gpio3.into_function().into_pull_type().into_dyn_pin(),
                 g2: pins.gpio4.into_function().into_pull_type().into_dyn_pin(),
                 b2: pins.gpio5.into_function().into_pull_type().into_dyn_pin(),
-                addra: pins.gpio6.into_function().into_pull_type().into_dyn_pin(),
-                addrb: pins.gpio7.into_function().into_pull_type().into_dyn_pin(),
-                addrc: pins.gpio8.into_function().into_pull_type().into_dyn_pin(),
-                addrd: pins.gpio9.into_function().into_pull_type().into_dyn_pin(),
+                addr: [
+                    pins.gpio6.into_function().into_pull_type().into_dyn_pin(),
+                    pins.gpio7.into_function().into_pull_type().into_dyn_pin(),
+                    pins.gpio8.into_function().into_pull_type().into_dyn_pin(),
+                    pins.gpio9.into_function().into_pull_type().into_dyn_pin(),
+                ],
                 clk: pins.gpio11.into_function().into_pull_type().into_dyn_pin(),
                 lat: pins.gpio12.into_function().into_pull_type().into_dyn_pin(),
                 oe: pins.gpio13.into_function().into_pull_type().into_dyn_pin(),
