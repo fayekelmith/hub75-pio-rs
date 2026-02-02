@@ -9,7 +9,7 @@ https://user-images.githubusercontent.com/74944/187094663-2f52e020-ccb2-4103-b69
 
 ## Features
 
-- Supports LED matrices up to 64x32 pixels with 1:16 scanline
+- Supports LED matrices with configurable scan rates (1:16, 1:32, 1:64)
 - High refresh rate (approx. 2100 Hz with 24 bit color depth on a 64x32
   display)
 - Does not utilize CPU for clocking out data to the display – all the work is
@@ -24,4 +24,4 @@ The current implementation assumes that the following groups of data outputs
 are assigned to consecutive pins on the RP2040:
 
 - R1, G1, B1, R2, G2, B2
-- ADDRA, ADDRB, ADDRC, ADDRD
+- Address pins (4-6 pins depending on display: A, B, C, D, [E], [F])

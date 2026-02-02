@@ -6,7 +6,7 @@
 //!
 //! ## Features
 //!
-//! - Supports LED matrices up to 64x32 pixels with 1:16 scanline
+//! - Supports LED matrices with configurable scan rates (1:16, 1:32, 1:64)
 //! - High refresh rate (approx. 2100 Hz with 24 bit color depth on a 64x32
 //!   display)
 //! - Does not utilize CPU for clocking out data to the display – all the work is
@@ -21,7 +21,7 @@
 //! are assigned to consecutive pins on the RP2040:
 //!
 //! - R1, G1, B1, R2, G2, B2
-//! - ADDRA, ADDRB, ADDRC, ADDRD
+//! - Address pins (4-6 pins depending on display size)
 
 #![no_std]
 #![feature(generic_const_exprs)]
@@ -141,6 +141,11 @@ where
 }
 
 /// Mapping between GPIO pins and HUB75 pins
+///
+/// ADDR_PINS: Number of address pins (4, 5, or 6)
+/// - 4 pins: 64×32 displays (1:16 scan)
+/// - 5 pins: 64×64 displays (1:32 scan)
+/// - 6 pins: 64×128 displays (1:64 scan)
 pub struct DisplayPins<F: Function, const ADDR_PINS: usize= 4> {
     pub r1: Pin<DynPinId, F, PullNone>,
     pub g1: Pin<DynPinId, F, PullNone>,
