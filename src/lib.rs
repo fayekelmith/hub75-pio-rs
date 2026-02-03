@@ -6,7 +6,7 @@
 //!
 //! ## Features
 //!
-//! - Supports LED matrices up to 64x32 pixels with 1:16 scanline
+//! - Supports LED matrices with configurable scan rates (1:16, 1:32, 1:64)
 //! - High refresh rate (approx. 2100 Hz with 24 bit color depth on a 64x32
 //!   display)
 //! - Does not utilize CPU for clocking out data to the display – all the work is
@@ -21,7 +21,7 @@
 //! are assigned to consecutive pins on the RP2040:
 //!
 //! - R1, G1, B1, R2, G2, B2
-//! - ADDRA, ADDRB, ADDRC, ADDRD
+//! - Address pins (4-6 pins depending on display size)
 
 #![no_std]
 #![feature(generic_const_exprs)]
@@ -141,7 +141,12 @@ where
 }
 
 /// Mapping between GPIO pins and HUB75 pins
-pub struct DisplayPins<F: Function> {
+///
+/// ADDR_PINS: Number of address pins (4, 5, or 6)
+/// - 4 pins: 64×32 displays (1:16 scan)
+/// - 5 pins: 64×64 displays (1:32 scan)
+/// - 6 pins: 64×128 displays (1:64 scan)
+pub struct DisplayPins<F: Function, const ADDR_PINS: usize= 4> {
     pub r1: Pin<DynPinId, F, PullNone>,
     pub g1: Pin<DynPinId, F, PullNone>,
     pub b1: Pin<DynPinId, F, PullNone>,
@@ -149,16 +154,17 @@ pub struct DisplayPins<F: Function> {
     pub g2: Pin<DynPinId, F, PullNone>,
     pub b2: Pin<DynPinId, F, PullNone>,
     pub clk: Pin<DynPinId, F, PullNone>,
-    pub addra: Pin<DynPinId, F, PullNone>,
-    pub addrb: Pin<DynPinId, F, PullNone>,
-    pub addrc: Pin<DynPinId, F, PullNone>,
-    pub addrd: Pin<DynPinId, F, PullNone>,
+    pub addr: [Pin<DynPinId, F, PullNone>; ADDR_PINS],
     pub lat: Pin<DynPinId, F, PullNone>,
     pub oe: Pin<DynPinId, F, PullNone>,
 }
 
+pub type DisplayPins4<F> = DisplayPins<F, 4>;
+pub type DisplayPins5<F> = DisplayPins<F, 5>;
+pub type DisplayPins6<F> = DisplayPins<F, 6>;
+
 /// The HUB75 display driver
-pub struct Display<'a, CH1, const W: usize, const H: usize, const B: usize, C>
+pub struct Display<'a, CH1, const W: usize, const H: usize, const B: usize, C, const ADDR_PINS: usize = 4>
 where
     [(); fb_bytes(W, H, B)]: Sized,
     CH1: ChannelIndex,
@@ -171,7 +177,7 @@ where
     lut: &'a dyn lut::Lut<B, C>,
 }
 
-impl<'a, CH1, const W: usize, const H: usize, const B: usize, C> Display<'a, CH1, W, H, B, C>
+impl<'a, CH1, const W: usize, const H: usize, const B: usize, C, const ADDR_PINS: usize> Display<'a, CH1, W, H, B, C, ADDR_PINS>
 where
     [(); fb_bytes(W, H, B)]: Sized,
     CH1: ChannelIndex,
@@ -196,7 +202,7 @@ where
     /// * `dma_chs`: DMA channels to be used to drive the PIO state machines
     pub fn new<PE, SM0, SM1, SM2, CH0, CH2, CH3>(
         buffer: &'static mut DisplayMemory<W, H, B>,
-        pins: DisplayPins<PE::PinFunction>,
+        pins: DisplayPins<PE::PinFunction, ADDR_PINS>,
         pio_block: &mut PIO<PE>,
         pio_sms: (
             UninitStateMachine<(PE, SM0)>,
@@ -282,17 +288,19 @@ where
             );
             let installed = pio_block.install(&program_data.program).unwrap();
             let (mut sm, _, mut tx) = PIOBuilder::from_program(installed)
-                .out_pins(pins.addra.id().num, 4)
+                .out_pins(pins.addr[0].id().num, ADDR_PINS.try_into().unwrap())
                 .side_set_pin_base(pins.lat.id().num)
                 .clock_divisor_fixed_point(1, 1)
                 .build(row_sm);
-            sm.set_pindirs([
-                (pins.addra.id().num, PinDir::Output),
-                (pins.addrb.id().num, PinDir::Output),
-                (pins.addrc.id().num, PinDir::Output),
-                (pins.addrd.id().num, PinDir::Output),
-                (pins.lat.id().num, PinDir::Output),
-            ]);
+            // Dynamically build the pindirs array
+            let mut pindirs = [(0u8, PinDir::Output); 7]; // Max 6 addr pins + 1 lat pin
+            let mut idx = 0;
+            for i in 0..ADDR_PINS {
+                pindirs[idx] = (pins.addr[i].id().num, PinDir::Output);
+                idx += 1;
+            }
+            pindirs[idx] = (pins.lat.id().num, PinDir::Output);
+            sm.set_pindirs(pindirs[0..=idx].iter().copied());
             // Configure the height of the screen
             tx.write((H / 2 - 1).try_into().unwrap());
             // Configure the color depth
@@ -557,8 +565,8 @@ where
     }
 }
 
-impl<'a, CH1, const W: usize, const H: usize, const B: usize, C> OriginDimensions
-    for Display<'a, CH1, W, H, B, C>
+impl<'a, CH1, const W: usize, const H: usize, const B: usize, C, const ADDR_PINS: usize> OriginDimensions
+    for Display<'a, CH1, W, H, B, C, ADDR_PINS>
 where
     [(); fb_bytes(W, H, B)]: Sized,
     CH1: ChannelIndex,
@@ -569,8 +577,8 @@ where
     }
 }
 
-impl<'a, CH1, const W: usize, const H: usize, const B: usize, C> DrawTarget
-    for Display<'a, CH1, W, H, B, C>
+impl<'a, CH1, const W: usize, const H: usize, const B: usize, C, const ADDR_PINS: usize> DrawTarget
+    for Display<'a, CH1, W, H, B, C, ADDR_PINS>
 where
     [(); fb_bytes(W, H, B)]: Sized,
     CH1: ChannelIndex,

@@ -1,6 +1,4 @@
-//! Displays a procedurally generated flame
-//!
-//! Based on https://indigoengine.io/docs/guides/howto-fire-shader
+//! Displays an animated Nyan cat
 #![no_std]
 #![no_main]
 #![feature(generic_const_exprs)]
@@ -9,6 +7,7 @@ use bsp::entry;
 use defmt::*;
 use defmt_rtt as _;
 use embedded_graphics::pixelcolor::Rgb888;
+use embedded_graphics::prelude::*;
 use panic_probe as _;
 
 use bsp::hal::pio::PIOExt;
@@ -24,9 +23,9 @@ use hub75_pio::lut::GammaLut;
 
 use rp_pico as bsp;
 
-mod flame;
+/// Display buffer for 64x64 RGB LED matrix with 12-bit color depth (shades)
+static mut DISPLAY_BUFFER: hub75_pio::DisplayMemory<64, 64, 12> = hub75_pio::DisplayMemory::new();
 
-static mut DISPLAY_BUFFER: hub75_pio::DisplayMemory<64, 32, 12> = hub75_pio::DisplayMemory::new();
 
 #[entry]
 fn main() -> ! {
@@ -91,6 +90,7 @@ fn main() -> ! {
                     pins.gpio7.into_function().into_pull_type().into_dyn_pin(),
                     pins.gpio8.into_function().into_pull_type().into_dyn_pin(),
                     pins.gpio9.into_function().into_pull_type().into_dyn_pin(),
+                    pins.gpio10.into_function().into_pull_type().into_dyn_pin(),
                 ],
                 clk: pins.gpio11.into_function().into_pull_type().into_dyn_pin(),
                 lat: pins.gpio12.into_function().into_pull_type().into_dyn_pin(),
@@ -104,21 +104,14 @@ fn main() -> ! {
         )
     };
 
-    let mut t = 0;
-    loop {
-        let canvas = flame::tick(t);
-        for (y, row) in canvas.row_iter().enumerate() {
-            for (x, _) in row.column_iter().enumerate() {
-                let a = canvas[(x, y)];
-                let r: u8 = *a.get(0).unwrap();
-                let g: u8 = *a.get(1).unwrap();
-                let b: u8 = *a.get(2).unwrap();
-
-                display.set_pixel(x + 14, y, Rgb888::new(r, g, b));
-            }
+    // Row scanner
+   loop {
+    for row in 0..64 {
+        for x in 0..64 {
+            display.set_pixel(x, row, Rgb888::WHITE);
         }
         display.commit();
-        delay.delay_ms(20);
-        t = (t + 1) % 2000;
+        delay.delay_ms(100); 
     }
+}
 }
